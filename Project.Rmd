@@ -1,0 +1,84 @@
+---
+title: "Predicting Activity Quality"
+author: "Colin Grove"
+date: "02/19/2015"
+output: html_document
+---
+
+
+We use a random forest to build a predictor for classe, a classifier of the quality of exercise.
+
+
+```{r, cache=TRUE}
+library(caret)
+library(randomForest)
+trainingURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testingURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+trainingFile <- 'trainingData.csv'
+testingFile <- 'testingData.csv'
+download.file(trainingURL, destfile = trainingFile, method="curl")
+download.file(testingURL, destfile = testingFile, method="curl")
+```
+```{r, cache=TRUE}
+training <- read.csv(trainingFile)
+testing <- read.csv(testingFile)
+```
+
+There are many columns with little to no data. These will not be useful in creating the predictor, so they are removed.
+```{r, cache=TRUE}
+missingCols <- c()
+for (i in 1:length(training)) {
+  if (sum(training[,i] %in% c(NA, "")) > 10000) {
+    missingCols <- c(missingCols, i)
+  }
+}
+```
+Next, we check how many missing values there are in remaining columns.
+```{r, cache=TRUE}
+training <- training[,-missingCols]
+testing <- testing[,-missingCols]
+missingNums <- c()
+for (i in 1:length(training)) {
+  missingNums <- c(missingNums, sum(training[,i] %in% c(NA, "")))
+}
+missingNums
+```
+There are no more missing values, so no imputation is needed.
+
+Finally, we remove the first seven variables, which are things like username and timestamp, and will not be useful in building the predictor. 
+```{r, cache=TRUE}
+training <- training[,-(1:7)]
+testing <- testing[,-(1:7)]
+length(training)
+```
+We have 52 variables left (plus the classe column). We build the predictor.
+
+```{r, cache=TRUE}
+modFit <- randomForest(classe ~ ., data=training, ntree=500)
+modFit
+```
+
+Cross-validation is built into the random forest machine learning method, as the OOB (out-of-bag) error is built by predicting the classe of each training data point x using only those trees for which x was not in the training set. Therefore the OOB estimate is a good estimate for the out of sample error. We thus expect the out of sample error to be around 0.26%.
+
+Note that the randomForest implementation of the confusion matrix is also based on OOB data, so it too is a good indicator of the error we might expect on an unknown dataset.
+
+
+## Appendix: Predicting the classe for test data
+
+Next, we will predict the classe for the testing data.
+```{r, cache=TRUE}
+pred <- predict(modFit, testing)
+pred
+```
+The following function is copied from the prediction assignment submission instructions, for the purpose of making submission easier.
+```{r, cache=TRUE}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(pred)
+```
